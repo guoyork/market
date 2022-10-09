@@ -6,11 +6,11 @@ from collections import Counter
 from scipy.special import comb, perm
 import os
 
-
+S = 10
 sample_size = 100
-N = 20000
-m = 5
-n = 3208
+N = 200000
+m = 6407
+n = 9
 epsilon = 1e-7
 interval = 2e-1
 # np.random.seed(100000)
@@ -43,6 +43,7 @@ def settle(ad_id, budget, revenue, cost):
 def cal_outcome(outcomes, costs, budget, match):
     res = 0.0
     used_budget = budget.copy()
+    m = outcomes.shape[0]
     for i in range(m):
         used_budget, temp = settle(match[i], used_budget, outcomes[i][match[i]], costs[i][match[i]])
         res += temp
@@ -55,6 +56,7 @@ def estimator1(outcomes, costs, budget, match1, match0, p):
     res1 = 0.0
     res0 = 0.0
     used_budget = budget.copy()
+    m = outcomes.shape[0]
     for i in range(m):
         if real_match[i] == n:
             continue
@@ -71,7 +73,6 @@ def estimator2(outcomes, costs, budget, match1, match0, p):
     real_match = [np.random.choice(range(0, n + 1), p=p[i]) for i in range(m)]
     res1 = np.zeros((m, n))
     res0 = np.zeros((m, n))
-
     used_budget = budget.copy()
     #order = np.random.permutation(m)
     order = range(m)
@@ -99,7 +100,8 @@ def optimize(outcomes, budget, costs):
 
 
 def theory_opt(outcomes):
-    res = np.sqrt(outcomes)
+    res = outcomes.copy()
+    m = outcomes.shape[0]
     for i in range(m):
         if np.sum(res[i]) > 0:
             res[i] = res[i]/np.sum(res[i])
@@ -163,8 +165,8 @@ def run_experiment(outcomes, costs, budget, match1, match0, prob, name):
     count0 = np.zeros((m, n))
     count2 = np.zeros((2 * m, 2 * m))
     for i in range(N):
-        if i % 1000 == 0:
-            print("round "+str(i))
+        # if i % 10 == 0:
+        #    print("round "+str(i))
         temp1, temp0 = estimator2(outcomes, costs, budget, match1, match0, prob)
         res.append(np.sum(temp0 - temp1))
         '''
@@ -196,41 +198,53 @@ if __name__ == "__main__":
     df = df[["simulation_id", "req_id", "adgroup_id", "litecvr", "pcvr", "ecpm"]]
     df = df[(df['simulation_id'] == 1221) | (df['simulation_id'] == 1230)]
     df = df.sort_values(by="req_id")
+    df = df.reset_index(drop=True)
+    print(df)
 
-    # print(df)
     ad_id_map = {}
     req_id_map = {}
     count1 = 1
     count2 = 1
 
     for i, row in df.iterrows():
-        temp = row["adgroup_id"]
-        if not ad_id_map.get(temp):
-            ad_id_map[temp] = count1
-            count1 += 1
-        temp = row["req_id"]
-        if not req_id_map.get(temp):
-            req_id_map[temp] = count2
-            count2 += 1
+        if i < S:
+            temp = row["adgroup_id"]
+            if not ad_id_map.get(temp):
+                ad_id_map[temp] = count1
+                count1 += 1
+            temp = row["req_id"]
+            if not req_id_map.get(temp):
+                req_id_map[temp] = count2
+                count2 += 1
     print(count1)
     print(count2)
+    n = count1
+    m = count2
     outcomes = np.zeros((count2, count1))
     costs = np.zeros((count2, count1))
     match1 = np.zeros(count2, dtype=int)
     match0 = np.zeros(count2, dtype=int)
     for i, row in df.iterrows():
-        req_id = req_id_map[row["req_id"]]
-        ad_id = ad_id_map[row["adgroup_id"]]
-        if row["simulation_id"] == 1221:
-            match1[req_id] = ad_id
-        elif row["simulation_id"] == 1231:
-            match0[req_id] = ad_id
-        costs[req_id][ad_id] = row["litecvr"]
-        outcomes[req_id][ad_id] = row["ecpm"]
-    budget = set_budget(match1, match0, costs)*2
+        if i < S:
+            req_id = req_id_map[row["req_id"]]
+            ad_id = ad_id_map[row["adgroup_id"]]
+            if row["simulation_id"] == 1221:
+                if match1[req_id] != 0:
+                    continue
+                match1[req_id] = ad_id
+            elif row["simulation_id"] == 1230:
+                if match0[req_id] != 0:
+                    continue
+                match0[req_id] = ad_id
+            costs[req_id][ad_id] = row["litecvr"]
+            outcomes[req_id][ad_id] = row["ecpm"]
+    print(outcomes)
+    print(costs)
+    budget = set_budget(match1, match0, costs)
     ground_truth = cal_outcome(outcomes, costs, budget, match0) - cal_outcome(outcomes, costs, budget, match1)
     print(ground_truth)
     abtests = (vec2mat(match0, np.ones(len(match0))) + vec2mat(match1, np.ones(len(match1)))) / 2
+    print(abtests)
     opt1 = theory_opt(outcomes)
     print("start sample 1")
     print(run_experiment(outcomes, costs, budget, match1, match0, abtests, "online"))
