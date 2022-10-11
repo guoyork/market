@@ -6,9 +6,9 @@ from collections import Counter
 from scipy.special import comb, perm
 import os
 
-S = 10
+S = 14372
 sample_size = 100
-N = 200000
+N = 20000
 m = 6407
 n = 9
 epsilon = 1e-7
@@ -160,13 +160,12 @@ def MSE(outcomes, match1, match0, x, p1, p2):
 
 
 def run_experiment(outcomes, costs, budget, match1, match0, prob, name):
-    res = []
+    res = np.loadtxt(name+"_res.txt").tolist()
     count1 = np.zeros((m, n))
     count0 = np.zeros((m, n))
     count2 = np.zeros((2 * m, 2 * m))
-    for i in range(N):
-        # if i % 10 == 0:
-        #    print("round "+str(i))
+    for i in range(len(res), N):
+        print("round "+str(i))
         temp1, temp0 = estimator2(outcomes, costs, budget, match1, match0, prob)
         res.append(np.sum(temp0 - temp1))
         '''
@@ -182,6 +181,7 @@ def run_experiment(outcomes, costs, budget, match1, match0, prob, name):
                 count2[k + m][j] += temp0[k][match0[k]] * temp1[j][match1[j]]
                 count2[k + m][j + m] += temp0[k][match0[k]] * temp0[j][match0[j]]
         '''
+        np.savetxt(name+"_res.txt", res)
     #np.savetxt(name + " count.txt", (count1 + count0) / N)
     #np.savetxt(name + " p1_value.txt", (count1 + count0) / (opt1 + epsilon) / N)
     #np.savetxt(name + " p2_value.txt", count2 / N)
@@ -247,6 +247,6 @@ if __name__ == "__main__":
     print(abtests)
     opt1 = theory_opt(outcomes)
     print("start sample 1")
-    print(run_experiment(outcomes, costs, budget, match1, match0, abtests, "online"))
+    print(run_experiment(outcomes, costs, budget, match1, match0, abtests, "ab"))
     print("start sample 2")
-    print(run_experiment(outcomes, costs, budget, match1, match0, opt1, "online"))
+    print(run_experiment(outcomes, costs, budget, match1, match0, opt1, "opt"))
